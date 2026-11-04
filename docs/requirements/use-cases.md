@@ -1477,11 +1477,13 @@ Details:
 - 6a. The student is assigned to a team: the system applies BR-student-deactivation-team as part of deactivation.
 - 6b. The student has no team: the system deactivates the account without requiring a team assignment.
 - 6c. The student has previously submitted work or received peer evaluations: the system retains those records and their authorized historical report visibility per BR-student-lifecycle and BR-deactivated-student-evaluations.
+- 6d. The student is already logged in: after deactivation commits, the system denies her subsequent requests to protected resources, including requests with an otherwise-valid existing login token, per FR-SEC-active-account.
 **Priority:** Low
 **Frequency of Use:** Rare. Occurs occasionally when a student withdraws from a course section.
 **Business Rules:** BR-student-lifecycle; BR-student-deactivation-team; BR-team-admin-only; BR-deactivated-student-evaluations; BR-submission-owed; BR-section-scoped-access
 
 **Associated Information:**
+- Access revocation honors FR-SEC-active-account. Reactivation restores account access; team participation additionally requires assignment per BR-student-deactivation-team and BR-team-assignment-required.
 - The step 4 warning explains the consequences of BR-student-lifecycle, BR-student-deactivation-team, BR-deactivated-student-evaluations, and BR-submission-owed, including the separate team assignment needed after reactivation.
 - Deactivation is distinct from physical deletion (UC-STU-delete-student) and may be reversed through UC-STU-reactivate-student.
 - The course admin or instructor may cancel before confirming deactivation.
