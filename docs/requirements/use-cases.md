@@ -1458,7 +1458,7 @@ Details:
 
 **Preconditions:**
 - PRE-1. The course admin or instructor is logged into the system.
-- PRE-2. There exists at least one active student in the system.
+- PRE-2. The selected student account exists; it may already be deactivated (extension 3a).
 
 **Postconditions:**
 - POST-1. The student's account is deactivated.
@@ -1474,6 +1474,7 @@ Details:
 7. Use case ends.
 
 **Extensions:**
+- 3a. The selected student is already deactivated: the system displays "Student is already deactivated" and ends the use case without changing the account, team assignment, or retained work. If another authorized user deactivates the student before confirmation is processed, the system handles that request in the same way.
 - 6a. The student is assigned to a team: the system applies BR-student-deactivation-team as part of deactivation.
 - 6b. The student has no team: the system deactivates the account without requiring a team assignment.
 - 6c. The student has previously submitted work or received peer evaluations: the system retains those records and their authorized historical report visibility per BR-student-lifecycle and BR-deactivated-student-evaluations.
@@ -1483,6 +1484,7 @@ Details:
 **Business Rules:** BR-student-lifecycle; BR-student-deactivation-team; BR-team-admin-only; BR-deactivated-student-evaluations; BR-submission-owed; BR-section-scoped-access
 
 **Associated Information:**
+- In the student list and selected student details, display a green "Active" badge or red "Inactive" badge beside the student's name. Include the text label so status does not depend on color alone. Disable the Deactivate action for inactive students, and refresh the displayed status after successful deactivation or an already-deactivated response.
 - Access revocation honors FR-SEC-active-account. Reactivation restores account access; team participation additionally requires assignment per BR-student-deactivation-team and BR-team-assignment-required.
 - The step 4 warning explains the consequences of BR-student-lifecycle, BR-student-deactivation-team, BR-deactivated-student-evaluations, and BR-submission-owed, including the separate team assignment needed after reactivation.
 - Deactivation is distinct from physical deletion (UC-STU-delete-student) and may be reversed through UC-STU-reactivate-student.
