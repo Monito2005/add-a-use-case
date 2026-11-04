@@ -1476,6 +1476,7 @@ Details:
 **Extensions:**
 - 2a. The caller is neither the owning course admin nor an instructor assigned to the student's course section: the system denies the operation per BR-student-lifecycle and BR-section-scoped-access, without changing the account, team assignment, or submitted work. This rule also applies to direct requests that bypass the interface.
 - 3a. The selected student is already deactivated: the system displays "Student is already deactivated" and ends the use case without changing the account, team assignment, or retained work. If another authorized user deactivates the student before confirmation is processed, the system handles that request in the same way.
+- 4a. The course admin or instructor cancels or dismisses the warning: the use case ends without a deactivation request and without changing the account, team assignment, or submitted work.
 - 6a. The student is assigned to a team: the system applies BR-student-deactivation-team as part of deactivation.
 - 6b. The student has no team: the system deactivates the account without requiring a team assignment.
 - 6c. The student has previously submitted work or received peer evaluations: the system retains those records and their authorized historical report visibility per BR-student-lifecycle and BR-deactivated-student-evaluations.
