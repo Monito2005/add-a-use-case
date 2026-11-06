@@ -33,6 +33,12 @@ public class UserService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException("username " + username + " is not found.")); // Otherwise, throw an exception.
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public boolean isAccountEnabled(Integer userId) {
+        return userId != null && this.userRepository.findById(userId)
+                .map(PeerEvaluationUser::isEnabled).orElse(false);
+    }
+
     public boolean checkEmailExists(String email) {
         return this.userRepository.findByEmail(email).isPresent();
     }

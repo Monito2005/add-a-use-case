@@ -29,31 +29,46 @@
       height="600"
     >
       <el-table-column label="Id" prop="id"></el-table-column>
-      <el-table-column label="First Name" prop="firstName"></el-table-column>
+      <el-table-column label="First Name" prop="firstName" min-width="180">
+        <template #default="{ row }">
+          {{ row.firstName }}
+          <el-tag :type="row.enabled ? 'success' : 'danger'" data-cy="student-status">
+            {{ row.enabled ? 'Active' : 'Inactive' }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="Last Name" prop="lastName"></el-table-column>
       <el-table-column label="Email" prop="email"></el-table-column>
       <el-table-column label="Team" prop="teamName"></el-table-column>
-      <el-table-column label="Status" prop="enabled">
-        <template #default="{ row }">
-          <el-tag type="success" v-if="row.enabled">Enabled</el-tag>
-          <el-tag type="danger" v-else>Disabled</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="Operations" width="120">
+      <el-table-column label="Operations" width="200">
         <template #default="{ row }">
           <el-button
+            data-cy="student-edit"
             icon="Edit"
             circle
             plain
             type="primary"
             @click.stop="showEditStudentDialog(row)"
           ></el-button>
+          <el-button
+            type="danger"
+            plain
+            :disabled="!row.enabled"
+            @click.stop="openDeactivation(row)"
+            data-cy="student-deactivate"
+            >Deactivate</el-button
+          >
         </template>
       </el-table-column>
       <template #empty>
         <el-empty description="No data is available." />
       </template>
     </el-table>
+    <DeactivateStudentDialog
+      v-model="deactivationVisible"
+      :student="selectedStudent"
+      @updated="studentUpdated"
+    />
     <!-- Pagination -->
     <el-pagination
       v-model:current-page="pageNumber"
@@ -86,6 +101,7 @@ import type {
 } from '@/apis/student/types'
 import { useSettingsStore } from '@/stores/settings'
 import EditStudentForm from './EditStudentForm.vue'
+import DeactivateStudentDialog from './DeactivateStudentDialog.vue'
 import { ElMessage } from 'element-plus'
 
 const searchCriteria = ref<StudentSearchCriteria>({
@@ -93,6 +109,18 @@ const searchCriteria = ref<StudentSearchCriteria>({
   firstName: '',
   lastName: ''
 })
+
+const deactivationVisible = ref(false)
+const selectedStudent = ref<Student>()
+function openDeactivation(student: Student) {
+  selectedStudent.value = student
+  deactivationVisible.value = true
+}
+async function studentUpdated(student: Student) {
+  selectedStudent.value = student
+  students.value = students.value.map((row) => (row.id === student.id ? student : row))
+  await loadStudents()
+}
 
 const students = ref<Student[]>([]) // Array of loaded students
 const loading = ref<boolean>(true) // Loading status

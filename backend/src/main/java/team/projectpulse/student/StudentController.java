@@ -70,6 +70,14 @@ public class StudentController {
         return new Result(true, StatusCode.SUCCESS, "Update student successfully", updatedStudentDto);
     }
 
+    @PostMapping("/{studentId}/deactivate")
+    public Result deactivateStudent(@PathVariable Integer studentId) {
+        StudentService.DeactivationOutcome outcome = this.studentService.deactivateStudent(studentId);
+        return new Result(true, StatusCode.SUCCESS,
+                outcome.alreadyDeactivated() ? "Student is already deactivated" : "Student deactivated successfully",
+                this.studentToStudentDtoConverter.convert(outcome.student()));
+    }
+
     @DeleteMapping("/{studentId}")
     public Result deleteStudent(@PathVariable Integer studentId) {
         this.studentService.deleteStudent(studentId);

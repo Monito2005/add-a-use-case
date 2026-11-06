@@ -49,6 +49,9 @@ public class EvaluationService {
     }
 
     public PeerEvaluation addPeerEvaluation(PeerEvaluation newPeerEvaluation) {
+        if (!newPeerEvaluation.getEvaluatee().isEnabled()) {
+            throw new PeerEvaluationIllegalArgumentException("Cannot evaluate an inactive student.");
+        }
         // Make sure the submission week is one of the course section's active weeks and is still open for submission
         requireOpenSubmissionWindow(newPeerEvaluation.getEvaluator().getSection(), newPeerEvaluation.getWeek(), NOT_PREVIOUS_WEEK_MESSAGE);
 
@@ -221,7 +224,13 @@ public class EvaluationService {
         report.setSectionName(this.sectionRepository.findById(sectionId).orElseThrow(() -> new ObjectNotFoundException("section", sectionId)).getSectionName());
 
         // Get all students in the section
-        List<Student> students = this.studentRepository.findBySectionSectionId(sectionId).stream().filter(student -> student.getTeam() != null).collect(Collectors.toList());
+        Map<Integer, Student> selected = new java.util.LinkedHashMap<>();
+        this.studentRepository.findBySectionSectionId(sectionId).stream()
+                .filter(student -> student.isEnabled() && student.getTeam() != null)
+                .forEach(student -> selected.put(student.getId(), student));
+        this.evaluationRepository.findHistoricalEvaluatees(sectionId, week)
+                .forEach(student -> selected.putIfAbsent(student.getId(), student));
+        List<Student> students = new ArrayList<>(selected.values());
 
         // For each student, compute her average total score, collect all public comments and private comments, and compute rating averages for each criterion.
         students.forEach(student -> {
