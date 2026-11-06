@@ -107,7 +107,22 @@ The test classes below are in `backend/src/test/java/team/projectpulse/` unless 
 - Components, `puts labeled status beside the name and disables an inactive action in the list`: T12.
 - Components, `refreshes selected details and team after the dedicated action`: T12.
 - Components, `renders profile status as read-only`: T12.
-- Authored Cypress cases derive their oracles from T01/T04/T06/T12/T16 as annotated in their titles; they could not execute. Neither mocked API test suite asserts real authorization from its mocked replies.
+- Cypress (unexecuted), `warns of every consequence and confirms once while pending`: T01.
+- Cypress (unexecuted), `sends no request on cancel`: T06 / 4a.
+- Cypress (unexecuted), `sends no request on close`: T06 / 4a.
+- Cypress (unexecuted), `sends no request on escape`: T06 / 4a.
+- Cypress (unexecuted), `sends no request on backdrop`: T06 / 4a.
+- Cypress (unexecuted), `refreshes a stale confirmation with the exact already-deactivated message`: T04 / 3a.
+- Cypress (unexecuted), `shows selected-details status beside the name and removes the team after success`: T12.
+- Cypress (unexecuted), `keeps profile status read-only`: T12.
+- Cypress (unexecuted), `refreshes status after a network failure before another action`: T16.
+- Cypress (unexecuted), `treats a gateway timeout as unknown and reloads the committed status`: T16.
+- Cypress (unexecuted), `keeps confirmation disabled if the status refresh also fails`: T16.
+- Cypress (unexecuted), `uses the shared forbidden handling without claiming success`: T16.
+- `StudentServiceTest.testStudentUpdateOwnInfo`: T13's same-status ordinary profile update.
+- `StudentServiceTest.testInstructorUpdatesStudent`: T13's same-status ordinary profile update for an instructor.
+- `StudentIntegrationTest.testStudentJohnUpdatesOwnInfo`: T13's real-API same-status ordinary profile update.
+- Mocked frontend API replies establish component behavior only, not real authorization.
 - Existing `StudentServiceTest` profile success payloads and `StudentIntegrationTest.testStudentJohnUpdatesOwnInfo` were rewritten to preserve status rather than silently attempt deactivation. The new T13 tests explicitly verify the rejected transition. No existing tests were deleted.
 
 ## The code deliberately broken
