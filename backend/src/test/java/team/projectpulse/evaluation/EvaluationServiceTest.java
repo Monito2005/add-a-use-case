@@ -673,4 +673,33 @@ class EvaluationServiceTest {
         assertThat(peerEvaluations.get(2).getTotalScore()).isCloseTo(49.0, within(0.01));
     }
 
+    @Test
+    void cannotEvaluateInactiveStudent() {
+        PeerEvaluation submission = this.evaluations.get(0);
+        submission.getEvaluatee().setEnabled(false);
+        assertThatThrownBy(() -> this.evaluationService.addPeerEvaluation(submission))
+                .isInstanceOf(PeerEvaluationIllegalArgumentException.class)
+                .hasMessage("Cannot evaluate an inactive student.");
+        verify(this.evaluationRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void historicalReportIncludesInactiveUnassignedEvaluateesOnlyInRecordedWeeks() {
+        Student former = this.students.get(0);
+        former.getTeam().removeStudent(former);
+        former.setEnabled(false);
+        given(this.sectionRepository.findById(2)).willReturn(Optional.of(former.getSection()));
+        given(this.studentRepository.findBySectionSectionId(2)).willReturn(this.students);
+        given(this.evaluationRepository.findHistoricalEvaluatees(2, "2023-W31")).willReturn(List.of(former));
+        org.mockito.Mockito.lenient().when(this.evaluationRepository.findByWeekAndEvaluateeId("2023-W31", former.getId())).thenReturn(this.johnsEvaluations);
+        WeeklyPeerEvaluationReport report = this.evaluationService.generateWeeklyPeerEvaluationReportForSection(2, "2023-W31");
+        assertThat(report.getPeerEvaluationAverages()).hasSize(5);
+        PeerEvaluationAverage retained = report.getPeerEvaluationAverages().stream()
+                .filter(row -> row.getStudentId().equals(former.getId())).findFirst().orElseThrow();
+        assertThat(retained.getTeamName()).isNull();
+        assertThat(retained.getAverageTotalScore()).isCloseTo(51.33, within(0.01));
+        assertThat(this.evaluationService.generateWeeklyPeerEvaluationReportForSection(2, "2023-W32")
+                .getPeerEvaluationAverages()).extracting(PeerEvaluationAverage::getStudentId).doesNotContain(former.getId());
+    }
+
 }
