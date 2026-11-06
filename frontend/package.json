@@ -11,7 +11,8 @@
     "type-check": "vue-tsc --build --force",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
     "format": "prettier --write src/",
-    "cy:open": "cypress open"
+    "cy:open": "cypress open",
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@tiptap/extension-link": "^3.19.0",
@@ -39,15 +40,18 @@
     "@vitejs/plugin-vue": "^5.2.4",
     "@vue/eslint-config-prettier": "^9.0.0",
     "@vue/eslint-config-typescript": "^13.0.0",
+    "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.8.1",
     "cypress": "^13.17.0",
     "eslint": "^8.57.1",
     "eslint-plugin-vue": "^9.33.0",
+    "jsdom": "^26.1.0",
     "npm-run-all2": "^6.2.6",
     "prettier": "^3.6.2",
     "sass": "^1.93.0",
     "typescript": "~5.9.2",
     "vite": "^5.4.20",
+    "vitest": "^2.1.9",
     "vue-tsc": "^2.2.12"
   }
 }
