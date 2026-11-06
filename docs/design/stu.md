@@ -2,11 +2,11 @@
 
 > Realizes: [UC-STU-deactivate-student](../requirements/use-cases.md#uc-stu-deactivate-student-the-course-admininstructor-deactivates-a-student)
 > Depends on: FR-SEC-authentication, FR-SEC-authorization, FR-SEC-active-account ([SRS](../requirements/software-requirements-specification.md#security-and-authorization-requirements)).
-> State: approved shape; implementation pending the design PR merge. Reactivation is not implemented by this design.
+> State: implemented on the build branch from merged design PR #2; verification results and limits are recorded in [the build report](../verification/student-deactivation.md). Reactivation is not implemented by this design.
 
 ## Overview
 
-Extend the existing student vertical slice and reuse the [platform containers](architectural-design.md#containers), [architectural conventions](architectural-design.md#architectural-conventions), and [Business Domain Model](../requirements/software-requirements-specification.md#business-domain-model). The existing implementation changes `enabled` through profile editing; the dedicated transition replaces that deactivation path. Policy is owned by the use case and BR-student-lifecycle, BR-student-deactivation-team, BR-deactivated-student-evaluations, BR-team-admin-only, and BR-submission-owed in [business rules](../requirements/business-rules.md).
+Extend the existing student vertical slice and reuse the [platform containers](architectural-design.md#containers), [architectural conventions](architectural-design.md#architectural-conventions), and [Business Domain Model](../requirements/software-requirements-specification.md#business-domain-model). The previous implementation changed `enabled` through profile editing; the dedicated transition replaces that deactivation path. Policy is owned by the use case and BR-student-lifecycle, BR-student-deactivation-team, BR-deactivated-student-evaluations, BR-team-admin-only, and BR-submission-owed in [business rules](../requirements/business-rules.md).
 
 ## Components and classes
 
@@ -88,11 +88,11 @@ Paths are relative to `${api.endpoint.base-url}` (normally `/api/v1`). Responses
 |---|---|---|---|---|
 | **New** `POST /students/{studentId}/deactivate` | Owning course admin or assigned course-section instructor; explicit instructor/admin role plus relationship | Path ID, no body | HTTP 200, `flag=true`, updated `StudentDto`, message `Student deactivated successfully` | 3a: HTTP 200, `flag=true`, unchanged DTO, exact message `Student is already deactivated`. 2a: HTTP 403, including unknown IDs to fail closed without revealing account existence. Missing/invalid authentication or inactive caller: 401. Malformed path ID: deny at the route guard. |
 | **Changed** `PUT /students/{studentId}` | Existing authorized callers | Existing profile DTO | Existing profile-update result if enabled status is unchanged | Reject any attempted enabled-status transition with HTTP 400 and no profile writes, instructing the caller to use the dedicated lifecycle action. Remove the status switch. No reactivation endpoint is added. |
-| **Adjusted access only** `GET /students/{studentId}` and `GET /evaluations/students/{studentId}/week/{week}/details` | Preserve existing callers; additionally admit the owning course admin via the lifecycle relationship predicate | Existing path fields | Existing DTO/report | Preserve scope/privacy restrictions. No broad role-only admin bypass. This lets an owning admin who is not assigned as instructor reach the selected student's details and retained records. |
+| **Adjusted access only** `GET /students/{studentId}` and `GET /evaluations/students/{studentId}/week/{week}/details`, and `GET /evaluations/students/{studentId}?startWeek=…&endWeek=…` | Preserve existing callers; additionally admit the owning course admin via the lifecycle relationship predicate | Existing path fields | Existing DTO/report | Preserve scope/privacy restrictions. No broad role-only admin bypass. This lets an owning admin who is not assigned as instructor reach the selected student's details and retained records. |
 | **Changed selection** `GET /evaluations/sections/{sectionId}/week/{week}` | Assigned instructor or owning course admin (`anyOf` existing course-section managers) | Existing path fields | Existing report shape, including historical evaluatees without a current team | 6c: include students with evaluations for the requested week even if inactive/unassigned; current active team members retain existing empty-row behavior. Inactive students with no evaluations for that week have no empty row. |
 | **Additional validation** `POST /evaluations` | Existing authenticated author, with normal team/window checks | Existing body | Existing result for permitted submissions | BR-deactivated-student-evaluations: HTTP 400 for inactive evaluatee, including a direct request naming her ID. Stored evaluations remain readable; this rule does not redefine the existing edit window for earlier evaluations. |
 
-Cancellation sends no POST. Disable confirmation during the request; after success or 3a update the selected student and reload the list. On a timeout/network error do not claim success: show that the outcome is unknown and reload status before offering another action. Repeating the POST is safe under 3a. Never offer a reactivation control in this build.
+Cancellation sends no POST. Disable confirmation during the request; after success or 3a update the selected student and reload the list. On a timeout/network error do not claim success: show that the outcome is unknown and reload status before offering another action. If that refresh fails, closing and reopening the same student's dialog preserves the refresh requirement; a successful refresh is required before retrying. Repeating the POST is safe under 3a. Never offer a reactivation control in this build.
 
 ## Key decisions
 
@@ -107,11 +107,15 @@ Cancellation sends no POST. Disable confirmation during the request; after succe
 
 No tables, columns, or migrations. Reuse `PeerEvaluationUser.enabled`, nullable `Student.team`, and existing evaluation/student and activity/team references from the SRS model. Preserve the student's course-section enrollment. Deactivation commits before a later authentication check must observe disabled status; requests already executing are not retroactively canceled. Reactivation does not restore team membership; historical team membership intervals are not introduced.
 
-The user approved a narrow Level-1 update to [Authentication](architectural-design.md#authentication), its foundation security/user relationship, and TD-jwt-revocation wording: distinguish designed account-status enforcement from individual-token revocation. Mark the new behavior as designed, not already implemented. No container, deployment, platform stack, or RAM component-boundary change.
+The Level-1 update to [Authentication](architectural-design.md#authentication), its foundation security/user relationship, and TD-jwt-revocation wording: distinguish designed account-status enforcement from individual-token revocation. The build updates that wording to record implemented account-status enforcement. No container, deployment, platform stack, or RAM component-boundary change.
+
+## Implementation clarification
+
+During the build the developer approved applying the same lifecycle relationship predicate to the existing period-summary endpoint (`GET /evaluations/students/{studentId}`): the selected-student dashboard uses that endpoint in addition to single-week details. Omitting it redirected an owning admin without a section instructor assignment to the forbidden page. The route preserves existing self-access and private-comment filtering, and does not admit an unrelated admin or teammate. No new role-only bypass or component boundary is introduced. Regression tests exercise the owning-admin and privacy cases.
 
 ## Tests
 
-Names below are planned tests, not claims of existing coverage. Backend service/unit tests cover decisions; integration tests must exercise real security and persistence. The existing `jwt()` test helper bypasses token decoding, so T08 must obtain a real signed token through login. Cypress tests may stub API responses for UI assertions and must be described as such in traceability.
+The rows below are the approved test oracles; actual tests and results are mapped in [the build report](../verification/student-deactivation.md). Backend service/unit tests cover decisions; integration tests must exercise real security and persistence. The existing `jwt()` test helper bypasses token decoding, so T08 must obtain a real signed token through login. Cypress tests may stub API responses for UI assertions and must be described as such in traceability.
 
 | ID | Use-case flow or oracle | Level | Assertions |
 |---|---|---|---|
@@ -134,4 +138,4 @@ Names below are planned tests, not claims of existing coverage. Backend service/
 
 ## Verification limits
 
-No production code is changed in this PR; all test rows are planned. The build must run backend tests with Docker and the frontend build, exercise the dialog against the running application, map every test to this list, and perform the assignment's deliberate production-code mutation. A real UI login/access test complements T08; stubbed Cypress tests alone cannot prove access revocation. Do not mark Verify as verified before those checks run.
+Production code now implements this design. The [build report](../verification/student-deactivation.md) maps T01–T16 to actual tests and records the full backend, frontend build, component-test, browser, and mutation outcomes. Cypress specs remain as browser-level tests; when Cypress could not launch in this environment, additional Vitest tests mounted the real Element Plus dialog and student views in jsdom with mocked student API responses. These component tests do not prove browser styling or access revocation; the live UI check and real-token backend tests cover those separately. Do not treat the baseline frontend type errors or unexecuted Cypress specs as passing checks.
