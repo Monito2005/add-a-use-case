@@ -91,7 +91,7 @@ class ActiveAccountSecurityIntegrationTest extends AbstractIntegrationTest {
         String token = login("b.wei@abc.edu");
         Student john = (Student) users.findById(4).orElseThrow();
         john.getSection().getInstructors().removeIf(i -> i.getId().equals(1)); em.flush();
-        for (String path : new String[]{"/students/4", "/evaluations/students/4/week/2023-W31/details", "/evaluations/sections/2/week/2023-W31"}) {
+        for (String path : new String[]{"/students/4", "/evaluations/students/4/week/2023-W31/details", "/evaluations/sections/2/week/2023-W31", "/evaluations/students/4?startWeek=2023-W31&endWeek=2023-W32"}) {
             mvc.perform(get(API + path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)).andExpect(status().isOk());
         }
     }

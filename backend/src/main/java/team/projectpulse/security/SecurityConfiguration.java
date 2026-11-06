@@ -226,7 +226,7 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, this.baseUrl + "/evaluations/sections/{sectionId}/week/{week}").access(AuthorizationManagers.anyOf(this.sectionInstructorAuthorizationManager, this.sectionOwnershipAuthorizationManager))
                         .requestMatchers(HttpMethod.GET, this.baseUrl + "/evaluations/students/{studentId}/week/{week}").access(this.userOwnershipAuthorizationManager)
                         .requestMatchers(HttpMethod.GET, this.baseUrl + "/evaluations/students/{studentId}/week/{week}/details").access(AuthorizationManagers.anyOf(this.studentInstructorAuthorizationManager, studentLifecycleAuthorizationManager))
-                        .requestMatchers(HttpMethod.GET, this.baseUrl + "/evaluations/students/{studentId}").access(this.userOwnershipAuthorizationManager)
+                        .requestMatchers(HttpMethod.GET, this.baseUrl + "/evaluations/students/{studentId}").access(AuthorizationManagers.anyOf(this.userOwnershipAuthorizationManager, studentLifecycleAuthorizationManager))
                         // Self-service: emails a receipt to the caller's own address, so authentication is the whole check.
                         .requestMatchers(HttpMethod.POST, this.baseUrl + "/evaluations/weeks/{week}/receipt").authenticated()
 

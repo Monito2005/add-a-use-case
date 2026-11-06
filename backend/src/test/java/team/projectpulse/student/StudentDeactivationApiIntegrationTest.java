@@ -105,10 +105,11 @@ class StudentDeactivationApiIntegrationTest extends AbstractIntegrationTest {
             for (String week : details.keySet()) {
                 assertThat(read("/evaluations/students/4/week/"+week+"/details", token).getJSONArray("data").toString()).isEqualTo(details.get(week));
                 assertThat(reportRow(week, token)).isEqualTo(averages.get(week));
+                assertThat(read("/evaluations/students/4?startWeek="+week+"&endWeek="+week, token).getJSONArray("data").length()).isEqualTo(1);
             }
             assertThat(reportRow("2023-W40", token)).isEmpty();
         }
-        for (String path : List.of("/evaluations/students/4/week/2023-W31/details", "/evaluations/sections/2/week/2023-W31")) {
+        for (String path : List.of("/evaluations/students/4/week/2023-W31/details", "/evaluations/sections/2/week/2023-W31", "/evaluations/students/4?startWeek=2023-W31&endWeek=2023-W32")) {
             mvc.perform(get(API+path).header(HttpHeaders.AUTHORIZATION, unrelated)).andExpect(status().isForbidden());
         }
     }
@@ -116,6 +117,10 @@ class StudentDeactivationApiIntegrationTest extends AbstractIntegrationTest {
         String self = login("j.smith@abc.edu"), teammate = login("e.hudson@abc.edu");
         mvc.perform(get(API + "/evaluations/students/4/week/2023-W31").header(HttpHeaders.AUTHORIZATION, self))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.privateComments").doesNotExist());
+        mvc.perform(get(API + "/evaluations/students/4?startWeek=2023-W31&endWeek=2023-W32").header(HttpHeaders.AUTHORIZATION, self))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].privateComments").doesNotExist());
+        mvc.perform(get(API + "/evaluations/students/4?startWeek=2023-W31&endWeek=2023-W32").header(HttpHeaders.AUTHORIZATION, teammate))
+                .andExpect(status().isForbidden());
         for (String token : List.of(self, teammate)) {
             mvc.perform(get(API + "/evaluations/students/4/week/2023-W31/details").header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isForbidden());
         }
