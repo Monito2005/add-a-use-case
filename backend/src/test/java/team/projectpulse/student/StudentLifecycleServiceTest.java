@@ -77,11 +77,12 @@ class StudentLifecycleServiceTest {
     @Test void profileCannotChangeStatusInEitherDirection() {
         for (boolean enabled : new boolean[]{true, false}) {
             Student student = new Student("old", "Old", "Name", "old@abc.edu", "secret", enabled, "student");
-            Student update = new Student("new", "New", "Name", "new@abc.edu", "secret", !enabled, "student");
+            Student update = new Student("new", "New", "Changed", "new@abc.edu", "secret", !enabled, "student");
             when(studentRepository.findById(1)).thenReturn(Optional.of(student));
             assertThatThrownBy(() -> service.updateStudent(1, update)).isInstanceOf(IllegalArgumentException.class);
             assertThat(student.getUsername()).isEqualTo("old");
             assertThat(student.getFirstName()).isEqualTo("Old");
+            assertThat(student.getLastName()).isEqualTo("Name");
             assertThat(student.getEmail()).isEqualTo("old@abc.edu");
             assertThat(student.isEnabled()).isEqualTo(enabled);
         }

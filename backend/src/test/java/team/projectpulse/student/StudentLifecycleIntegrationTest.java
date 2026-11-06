@@ -121,19 +121,38 @@ class StudentLifecycleIntegrationTest extends AbstractIntegrationTest {
                 .extracting(row -> row.getStudentId()).doesNotContain(id);
     }
 
-    @Test void deactivationRollbackRestoresBothChanges() {
-        Integer id = john().getId(), team = john().getTeam().getTeamId();
-        caller("b.wei@abc.edu", "ROLE_admin");
+    @Test
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void deactivationRollbackRestoresBothChanges() {
         TransactionTemplate tx = new TransactionTemplate(transactions);
-        assertThatThrownBy(() -> tx.execute(status -> {
-            service.deactivateStudent(id);
-            em.flush();
-            throw new IllegalStateException("induced failure before commit");
-        })).isInstanceOf(IllegalStateException.class);
-        TestTransaction.flagForRollback(); TestTransaction.end(); TestTransaction.start();
-        Student reloaded = students.findById(id).orElseThrow();
-        assertThat(reloaded.isEnabled()).isTrue();
-        assertThat(reloaded.getTeam().getTeamId()).isEqualTo(team);
+        // Commit the fixture first, so automatic test teardown cannot create a false rollback result.
+        Integer id = tx.execute(status -> {
+            Student student = new Student("rollback@abc.edu", "Rollback", "Student", "rollback@abc.edu", "secret", true, "student");
+            student.setSection(em.find(team.projectpulse.section.Section.class, 2));
+            student.setTeam(em.find(team.projectpulse.team.Team.class, 1));
+            return students.saveAndFlush(student).getId();
+        });
+        Long activityCount = tx.execute(status -> activities.count());
+        Long evaluationCount = tx.execute(status -> evaluations.count());
+        try {
+            assertThatThrownBy(() -> tx.execute(status -> {
+                caller("b.wei@abc.edu", "ROLE_admin");
+                service.deactivateStudent(id);
+                em.flush();
+                assertThat(students.findById(id).orElseThrow().isEnabled()).isFalse();
+                assertThat(students.findById(id).orElseThrow().getTeam()).isNull();
+                throw new IllegalStateException("induced failure before commit");
+            })).isInstanceOf(IllegalStateException.class).hasMessage("induced failure before commit");
+            tx.executeWithoutResult(status -> {
+                Student reloaded = students.findById(id).orElseThrow();
+                assertThat(reloaded.isEnabled()).isTrue();
+                assertThat(reloaded.getTeam().getTeamId()).isEqualTo(1);
+                assertThat(activities.count()).isEqualTo(activityCount);
+                assertThat(evaluations.count()).isEqualTo(evaluationCount);
+            });
+        } finally {
+            tx.executeWithoutResult(status -> students.deleteById(id));
+        }
     }
 
     @Test void unassignedInstructorDenied() {
@@ -181,26 +200,45 @@ class StudentLifecycleIntegrationTest extends AbstractIntegrationTest {
             return students.saveAndFlush(student).getId();
         });
         ExecutorService pool = Executors.newFixedThreadPool(2);
-        CountDownLatch ready = new CountDownLatch(2), start = new CountDownLatch(1);
-        Callable<Boolean> request = () -> {
-            ready.countDown();
-            if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("start timeout");
-            try {
-                return tx.execute(status -> {
-                    caller("b.wei@abc.edu", "ROLE_admin");
-                    return service.deactivateStudent(id).alreadyDeactivated();
-                });
-            } finally { SecurityContextHolder.clearContext(); }
-        };
+        CountDownLatch firstHasChanged = new CountDownLatch(1), firstMayCommit = new CountDownLatch(1);
+        CountDownLatch secondHasStarted = new CountDownLatch(1);
         try {
-            Future<Boolean> first = pool.submit(request), second = pool.submit(request);
-            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue(); start.countDown();
-            assertThat(List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS)))
-                    .containsExactlyInAnyOrder(false, true);
+            Future<Boolean> first = pool.submit(() -> {
+                try {
+                    return tx.execute(status -> {
+                        caller("b.wei@abc.edu", "ROLE_admin");
+                        boolean unchanged = service.deactivateStudent(id).alreadyDeactivated();
+                        em.flush();
+                        firstHasChanged.countDown();
+                        try {
+                            if (!firstMayCommit.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("commit barrier timeout");
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt(); throw new IllegalStateException(ex);
+                        }
+                        return unchanged;
+                    });
+                } finally { SecurityContextHolder.clearContext(); }
+            });
+            assertThat(firstHasChanged.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<Boolean> second = pool.submit(() -> {
+                try {
+                    return tx.execute(status -> {
+                        caller("b.wei@abc.edu", "ROLE_admin");
+                        secondHasStarted.countDown();
+                        return service.deactivateStudent(id).alreadyDeactivated();
+                    });
+                } finally { SecurityContextHolder.clearContext(); }
+            });
+            assertThat(secondHasStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            // The first transaction is still uncommitted; the second must wait, then observe its result.
+            assertThatThrownBy(() -> second.get(250, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+            firstMayCommit.countDown();
+            assertThat(first.get(20, TimeUnit.SECONDS)).isFalse();
+            assertThat(second.get(20, TimeUnit.SECONDS)).isTrue();
             Boolean enabled = tx.execute(status -> accounts.isAccountEnabled(id));
             assertThat(enabled).isFalse();
         } finally {
-            start.countDown(); pool.shutdownNow(); pool.awaitTermination(10, TimeUnit.SECONDS);
+            firstMayCommit.countDown(); pool.shutdownNow(); pool.awaitTermination(10, TimeUnit.SECONDS);
             tx.executeWithoutResult(status -> students.deleteById(id));
             TestTransaction.start();
         }

@@ -1,6 +1,8 @@
 package team.projectpulse.student;
 
 import jakarta.persistence.EntityManager;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import java.util.*;
 import org.json.*;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,7 @@ class StudentDeactivationApiIntegrationTest extends AbstractIntegrationTest {
     @Autowired PeerEvaluationRepository evaluations;
     @Autowired SubmissionStatusService submissionStatus;
     @Autowired EntityManager em;
+    @Autowired JsonMapper json;
 
     private String login(String email) throws Exception {
         return "Bearer " + body(mvc.perform(post(API + "/users/login").with(httpBasic(email, "123456")))
@@ -40,13 +43,13 @@ class StudentDeactivationApiIntegrationTest extends AbstractIntegrationTest {
     private JSONObject read(String path, String token) throws Exception {
         return body(mvc.perform(get(API + path).header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isOk()).andReturn());
     }
-    private String reportRow(String week, String token) throws Exception {
+    private JsonNode reportRow(String week, String token) throws Exception {
         var rows = read("/evaluations/sections/2/week/" + week, token).getJSONObject("data").getJSONArray("peerEvaluationAverages");
         for (int i=0; i<rows.length(); i++) {
             JSONObject row = rows.getJSONObject(i);
-            if (row.getInt("studentId") == 4) { row.remove("teamName"); return row.toString(); }
+            if (row.getInt("studentId") == 4) { row.remove("teamName"); return json.readTree(row.toString()); }
         }
-        return "";
+        return json.createObjectNode();
     }
     @Test void deactivateAssignedStudentAndRepeat() throws Exception {
         String admin = login("b.wei@abc.edu");
@@ -65,7 +68,7 @@ class StudentDeactivationApiIntegrationTest extends AbstractIntegrationTest {
         assertThat(students.findByTeamTeamId(team)).extracting(Student::getId).doesNotContain(4);
         JSONObject repeat = deactivate(4, admin);
         assertThat(repeat.getString("message")).isEqualTo("Student is already deactivated");
-        assertThat(repeat.getJSONObject("data").toString()).isEqualTo(first.getJSONObject("data").toString());
+        assertThat(json.readTree(repeat.getJSONObject("data").toString())).isEqualTo(json.readTree(first.getJSONObject("data").toString()));
     }
     @Test void assignedInstructorCanDeactivateUnassignedStudent() throws Exception {
         Student john = students.findById(4).orElseThrow(); john.getTeam().removeStudent(john); em.flush();
@@ -95,19 +98,21 @@ class StudentDeactivationApiIntegrationTest extends AbstractIntegrationTest {
         String admin = login("b.wei@abc.edu"), instructor = login("b.gates@abc.edu"), unrelated = login("t.cook@abc.edu");
         Student john = students.findById(4).orElseThrow();
         john.getSection().getInstructors().removeIf(i -> i.getId().equals(1)); em.flush();
-        Map<String,String> details = new HashMap<>(); Map<String,String> averages = new HashMap<>();
+        Map<String,JsonNode> details = new HashMap<>(); Map<String,JsonNode> averages = new HashMap<>();
         for (String week : List.of("2023-W31", "2023-W32")) {
-            details.put(week, read("/evaluations/students/4/week/" + week + "/details", instructor).getJSONArray("data").toString());
-            assertThat(details.get(week)).isNotEmpty(); averages.put(week, reportRow(week, instructor));
+            details.put(week, json.readTree(read("/evaluations/students/4/week/" + week + "/details", instructor).getJSONArray("data").toString()));
+            assertThat(details.get(week).size()).isPositive();
+            averages.put(week, reportRow(week, instructor));
+            assertThat(averages.get(week).size()).isPositive();
         }
         deactivate(4, admin); em.flush(); em.clear();
         for (String token : List.of(admin, instructor)) {
             for (String week : details.keySet()) {
-                assertThat(read("/evaluations/students/4/week/"+week+"/details", token).getJSONArray("data").toString()).isEqualTo(details.get(week));
+                assertThat(json.readTree(read("/evaluations/students/4/week/"+week+"/details", token).getJSONArray("data").toString())).isEqualTo(details.get(week));
                 assertThat(reportRow(week, token)).isEqualTo(averages.get(week));
                 assertThat(read("/evaluations/students/4?startWeek="+week+"&endWeek="+week, token).getJSONArray("data").length()).isEqualTo(1);
             }
-            assertThat(reportRow("2023-W40", token)).isEmpty();
+            assertThat(reportRow("2023-W40", token).size()).isZero();
         }
         for (String path : List.of("/evaluations/students/4/week/2023-W31/details", "/evaluations/sections/2/week/2023-W31", "/evaluations/students/4?startWeek=2023-W31&endWeek=2023-W32")) {
             mvc.perform(get(API+path).header(HttpHeaders.AUTHORIZATION, unrelated)).andExpect(status().isForbidden());
@@ -168,16 +173,22 @@ class StudentDeactivationApiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.flag").value(true));
         assertThat(evaluations.count()).isEqualTo(count+1);
     }
+    private Map<Integer, JsonNode> activitySnapshot(String token, String query) throws Exception {
+        String content = body(mvc.perform(post(API+"/activities/search").header(HttpHeaders.AUTHORIZATION,token)
+                .contentType("application/json").content(query)).andExpect(status().isOk()).andReturn())
+                .getJSONObject("data").getJSONArray("content").toString();
+        Map<Integer, JsonNode> records = new HashMap<>();
+        for (JsonNode record : json.readTree(content)) records.put(record.get("activityId").asInt(), record);
+        return records;
+    }
     @Test void retainedActivitiesRemainVisibleThroughHistoricalQuery() throws Exception {
         String admin = login("b.wei@abc.edu"), instructor = login("b.gates@abc.edu");
         String query = "{\"studentId\":\"4\",\"week\":\"2023-W31\",\"teamId\":\"1\"}";
-        var before = body(mvc.perform(post(API+"/activities/search").header(HttpHeaders.AUTHORIZATION,instructor).contentType("application/json").content(query))
-                .andExpect(status().isOk()).andReturn()).getJSONObject("data").getJSONArray("content").toString();
-        assertThat(before).isNotEmpty(); deactivate(4,admin); em.flush(); em.clear();
+        Map<Integer, JsonNode> before = activitySnapshot(instructor, query);
+        assertThat(before).isNotEmpty();
+        deactivate(4,admin); em.flush(); em.clear();
         for (String token : List.of(admin,instructor)) {
-            var after = body(mvc.perform(post(API+"/activities/search").header(HttpHeaders.AUTHORIZATION,token).contentType("application/json").content(query))
-                    .andExpect(status().isOk()).andReturn()).getJSONObject("data").getJSONArray("content").toString();
-            assertThat(after).isEqualTo(before);
+            assertThat(activitySnapshot(token, query)).isEqualTo(before);
         }
     }
     @Test void deactivationRemovesOwedItemsAndInactiveEvaluateeObligation() throws Exception {
