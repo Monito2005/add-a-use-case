@@ -57,4 +57,4 @@ The Tests cell now names extension coverage and the direct reminder-recipient te
 
 ## What remains personal
 
-The developer can use these findings to make and explain their own decisions. This audit does not replace Part 6's personal triage, labeled inline diff comment, or fresh-session review. The build PR remains open and unmerged for grading.
+The developer can use these findings to make and explain their own decisions. This audit does not replace the developer's personal assessment. Part 6's separate fresh-context review has since completed with no actionable findings, and the labeled agent-assisted inline comment is linked in the build report. The build PR remains open and unmerged for grading.
