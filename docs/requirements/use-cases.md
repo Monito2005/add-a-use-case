@@ -1458,10 +1458,11 @@ Details:
 
 **Preconditions:**
 - PRE-1. The course admin or instructor is logged into the system.
-- PRE-2. There exists at least one active student in the system.
+- PRE-2. The selected student account exists; it may already be deactivated (extension 3a).
 
 **Postconditions:**
 - POST-1. The student's account is deactivated.
+- POST-2. The team assignment is removed and submitted work is retained per BR-student-deactivation-team.
 
 **Main Success Scenario:**
 1. The course admin or instructor indicates to deactivate a student.
@@ -1473,12 +1474,23 @@ Details:
 7. Use case ends.
 
 **Extensions:**
+- 2a. The caller is neither the owning course admin nor an instructor assigned to the student's course section: the system denies the operation per BR-student-lifecycle and BR-section-scoped-access, without changing the account, team assignment, or submitted work. This rule also applies to direct requests that bypass the interface.
+- 3a. The selected student is already deactivated: the system displays "Student is already deactivated" and ends the use case without changing the account, team assignment, or retained work. If another authorized user deactivates the student before confirmation is processed, the system handles that request in the same way.
+- 4a. The course admin or instructor cancels or dismisses the warning: the use case ends without a deactivation request and without changing the account, team assignment, or submitted work.
+- 6a. The student is assigned to a team: the system applies BR-student-deactivation-team as part of deactivation.
+- 6b. The student has no team: the system deactivates the account without requiring a team assignment.
+- 6c. The student has previously submitted work or received peer evaluations: the system retains those records and their authorized historical report visibility per BR-student-lifecycle and BR-deactivated-student-evaluations.
+- 6d. The student is already logged in: after deactivation commits, the system denies her subsequent requests to protected resources, including requests with an otherwise-valid existing login token, per FR-SEC-active-account.
 **Priority:** Low
 **Frequency of Use:** Rare. Occurs occasionally when a student withdraws from a course section.
-**Business Rules:** BR-student-lifecycle
+**Business Rules:** BR-student-lifecycle; BR-student-deactivation-team; BR-team-admin-only; BR-deactivated-student-evaluations; BR-submission-owed; BR-section-scoped-access
 
 **Associated Information:**
-- Consequence of the deactivation: The student will no longer be able to log in or submit weekly activity reports and peer evaluations, but the student's account and her previously submitted work are kept in the system. Deactivation will NOT remove the student from the system, and the account can be reactivated in the future (UC-STU-reactivate-student: Reactivate a student). This is distinct from deletion (UC-STU-delete-student: Delete a student), which is a physical, unrecoverable delete. The course admin or instructor shall be able to cancel the use case at any time prior to submitting it.
+- In the student list and selected student details, display a green "Active" badge or red "Inactive" badge beside the student's name. Include the text label so status does not depend on color alone. Disable the Deactivate action for inactive students, and refresh the displayed status after successful deactivation or an already-deactivated response.
+- Access revocation honors FR-SEC-active-account. Reactivation restores account access; team participation additionally requires assignment per BR-student-deactivation-team and BR-team-assignment-required.
+- The step 4 warning explains the consequences of BR-student-lifecycle, BR-student-deactivation-team, BR-deactivated-student-evaluations, and BR-submission-owed, including the separate team assignment needed after reactivation.
+- Deactivation is distinct from physical deletion (UC-STU-delete-student) and may be reversed through UC-STU-reactivate-student.
+- The course admin or instructor may cancel before confirming deactivation.
 
 **Related Use Cases:** UC-STU-delete-student: Delete a student; UC-STU-reactivate-student: Reactivate a student
 **Assumptions:**
@@ -1513,9 +1525,10 @@ Details:
 **Extensions:**
 **Priority:** Low
 **Frequency of Use:** Rare. Occurs occasionally when a previously withdrawn student returns to a course section.
-**Business Rules:** BR-student-lifecycle
+**Business Rules:** BR-student-lifecycle; BR-student-deactivation-team; BR-team-admin-only
 
 **Associated Information:**
+- Apply BR-student-deactivation-team after reactivation; team assignment is a separate course-admin action. This use case does not restore a former assignment.
 - The course admin or instructor shall be able to cancel the use case at any time prior to submitting it.
 
 **Related Use Cases:** UC-STU-delete-student: Delete a student; UC-STU-deactivate-student: Deactivate a student
